@@ -1,0 +1,8 @@
+name: readseekerDLenv
+dependencies:
+- python==3.10
+- bioconda::blast>=2.12.0
+- pip
+- pip:
+  # works for regular pip packages
+  - biopython==1.79

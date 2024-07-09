@@ -1,0 +1,11 @@
+name: dnabertbenchmarkmappingtools
+
+channels:
+  - conda-forge
+  - anaconda
+  - bioconda
+
+dependencies:
+  - samtools=1.3.1
+  - bowtie2=2.5.1
+  - bedtools=2.30.0

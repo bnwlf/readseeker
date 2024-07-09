@@ -1,0 +1,9 @@
+name: dnabertbenchmarkdiamond
+
+channels:
+  - conda-forge
+  - anaconda
+  - bioconda
+
+dependencies:
+  - diamond=2.1.8

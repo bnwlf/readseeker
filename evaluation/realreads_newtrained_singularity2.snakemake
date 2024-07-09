@@ -1,0 +1,222 @@
+import pprint as p
+
+
+# Load Model from Config
+dnabertmodel = config["model"]
+p.pprint(dnabertmodel)
+
+# Load References from Config
+references = config["references"]
+p.pprint(references)
+
+
+
+# Load all samples and References
+samples =config["samples"]
+p.pprint(samples)
+
+
+def get_balanced (wildcards):
+	return samples[wildcards.sample]["balanced"]
+
+def get_genome(wildcards):
+	return references[wildcards.reference]['genome']
+
+def get_bed (wildcards):
+	return references[wildcards.reference]['cdsBed']
+
+
+def get_coding_and_unclear(wildcards):
+	if "cds_unclearBed" in references[wildcards.reference]:
+		return [references[wildcards.reference]["cds_unclearBed"]]
+	else:
+		return [get_bed(wildcards)]
+
+def get_sample(wildcards):
+	return [samples[wildcards.sample]["R1"],samples[wildcards.sample]["R2"]]
+
+
+# Overview
+# sample -> mapping -> sorting -> filter4mappedReads -> classifyReads cds/nonCDS based on bedfile -> make DNAbert input -> classify with DNAbert -> bind DNAbert output to Input ->  join all predictions -> done
+
+print({sample["ref"] for sample  in samples.values()})
+
+rule themAll:
+	input:
+		"benchmark_result/dnabertCDS_classification_benchmark_{}Samples_{}References.tsv".format(len(samples),len( {sample["ref"] for sample  in samples.values()}))
+
+
+
+rule join_single_benchmarks:
+	input:
+		sorted([f"benchmark/{sampleprops['ref']}/{sample}/benchmarkfile_{sampleprops['ref']}_{sample}.tsv"  for sample, sampleprops in samples.items()])
+	output:
+		"benchmark_result/dnabertCDS_classification_benchmark_{samplecount}Samples_{referencecount}References.tsv"
+	shell: """head -n 1 {input[0]} >{output} && tail -q -n +2 {input} >> {output}"""
+
+
+rule dnabertClassification2tsv:
+	input:
+		groundtruth = "benchmark/{reference}/{sample}/dev.tsv",
+		predictionfile = "benchmark/{reference}/{sample}/dnabert/pred_results.npy"
+	output:
+		"benchmark/{reference}/{sample}/benchmarkfile_{reference}_{sample}.tsv"
+	log:
+		"logs/benchmarkfile_{reference}_{sample}.log"
+	conda:
+		"conda/dnabertconverter.yaml"
+	script:
+		"scripts/dnabert2tsv.py"
+
+rule dnabertClassifikation:
+	input:
+		inpufile="benchmark/{reference}/{sample}/dev.tsv",
+		model=os.path.join(dnabertmodel,"pytorch_model.bin"),
+		vocab=os.path.join(dnabertmodel,"vocab.txt")
+	output:
+		"benchmark/{reference}/{sample}/dnabert/pred_results.npy"
+	params:
+		outputpath="benchmark/{reference}/{sample}/",
+		inputpath="./",
+		modelpath = dnabertmodel
+	singularity: "singularity/dnabert.sif"
+	threads:
+		60
+	shell:
+		"""modelpath=$(realpath {params.modelpath})
+ls -lah $modelpath
+mkdir -p {params.outputpath}
+cd  {params.outputpath}
+python /DNABERT/examples/run_finetune_wovalidation.py \
+    --model_type dna \
+    --tokenizer_name=dna6 \
+    --model_name_or_path $modelpath \
+    --task_name dnaprom \
+    --do_predict \
+    --data_dir ./ \
+    --max_seq_length 298 \
+    --per_gpu_pred_batch_size=100\
+    --output_dir $modelpath \
+    --predict_dir ./dnabert \
+    --n_process {threads}
+"""
+
+
+rule bams2dnaberttsv:
+	input:
+		cds="mappedData/{reference}/{sample}/{sample}_{reference}_cds.bam",
+		mapnonCDS="mappedData/{reference}/{sample}/{sample}_{reference}_NONCDS.bam",
+		cdsindex="mappedData/{reference}/{sample}/{sample}_{reference}_cds.bam.bai",
+		noncdsindex="mappedData/{reference}/{sample}/{sample}_{reference}_NONCDS.bam.bai"
+
+
+	output:
+		"benchmark/{reference}/{sample}/dev.tsv"
+	log:
+		"logs/devtab_{reference}_{sample}.log"
+	params:
+		minimalmappingquality = 42,
+		balanced = get_balanced
+	conda:
+		"conda/dnabertconverter.yaml"
+	script: "scripts/bam2dnabert_blast.py"
+
+rule getReadswithCDS:
+	input: 
+		bam = "mappedData/{reference}/{sample}/{sample}_{reference}_sorted_mapped.bam",
+		bed = get_bed
+	output:
+		cds="mappedData/{reference}/{sample}/{sample}_{reference}_cds.bam",
+		cdsindex="mappedData/{reference}/{sample}/{sample}_{reference}_cds.bam.bai"
+	conda:
+		"conda/mappingtools.yaml"
+	shell:
+		"""
+		bedtools intersect -wa -a {input.bam} -b {input.bed} -f 1 > {output.cds}
+		samtools index {output.cds}
+		"""
+
+rule getReadswithoutCDS:
+	input: 
+		bam = "mappedData/{reference}/{sample}/{sample}_{reference}_sorted_mapped.bam",
+		beds = get_coding_and_unclear
+	output:
+		noncds = "mappedData/{reference}/{sample}/{sample}_{reference}_NONCDS.bam",
+		noncdsindex = "mappedData/{reference}/{sample}/{sample}_{reference}_NONCDS.bam.bai"
+	conda:
+		"conda/mappingtools.yaml"
+	log:
+		"logs/filternoncds_{reference}_{sample}_NONCDS.log"
+	shell:
+		"""
+		bedtools intersect -v -wa -f 0.00000001 -a {input.bam} -b {input.beds} > {output.noncds}
+		samtools index {output.noncds}
+		"""
+
+
+
+rule sortBam:
+	input:
+		"mappedData/{reference}/{sample}/{sample}_{reference}_mapped.bam"
+	output:
+		temp("mappedData/{reference}/{sample}/{sample}_{reference}_sorted_mapped.bam")
+	
+	threads: 4
+	conda:
+		"conda/mappingtools.yaml"
+	
+	shell:
+		"""
+		samtools sort {input} -o {output} -O BAM -@ {threads}
+		"""
+
+rule filterMapping:
+	input:
+		"mappedData/{reference}/{sample}/{sample}_{reference}.bam"
+	output:
+		"mappedData/{reference}/{sample}/{sample}_{reference}_mapped.bam"
+	conda:
+		"conda/mappingtools.yaml"
+	shell:
+		"""
+		samtools view -b -F 4 {input} > {output}
+		"""
+
+
+
+rule map:
+	input:
+		get_sample,
+		index="bowtieindex/{reference}/{reference}_bt2idx.1.bt2"
+	params:
+		index="bowtieindex/{reference}/{reference}_bt2idx"
+	output:
+		"mappedData/{reference}/{sample}/{sample}_{reference}.bam"
+	conda:
+		"conda/mappingtools.yaml"
+	threads: 15
+	shell:
+		"""
+		bowtie2 -x {params.index} -1 {input[0]} -2 {input[1]} --threads 11 --seed 42 |  samtools view -bS -@ 4 - > {output}
+		"""
+
+
+rule make_index:
+	input:
+		get_genome
+	output:
+		"bowtieindex/{reference}/{reference}_bt2idx.1.bt2",
+		"bowtieindex/{reference}/{reference}_bt2idx.2.bt2",
+		"bowtieindex/{reference}/{reference}_bt2idx.3.bt2",
+		"bowtieindex/{reference}/{reference}_bt2idx.4.bt2",
+		"bowtieindex/{reference}/{reference}_bt2idx.rev.1.bt2",
+		"bowtieindex/{reference}/{reference}_bt2idx.rev.2.bt2"
+	params:
+		"bowtieindex/{reference}/{reference}_bt2idx"
+	threads: 40
+	conda:
+		"conda/mappingtools.yaml"
+	shell:
+		"""
+		bowtie2-build --threads {threads} {input} {params}
+"""

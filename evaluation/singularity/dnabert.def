@@ -1,0 +1,51 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+
+%post
+    echo $(which conda)
+    bash
+    apt-get -y update
+
+    apt-get -y install build-essential git curl bash pkg-config libgoogle-perftools-dev libz-dev cmake patch
+    apt-get clean
+
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup 
+      
+    bash ./rustup -y
+    echo "****************"
+    ls -la $HOME/.cargo/bin/
+    export PATH="$HOME/.cargo/bin:$PATH"
+    which rustup
+    rustup default nightly
+    rustup update 
+      
+    . /opt/conda/etc/profile.d/conda.sh
+    conda create anaconda::cudatoolkit python=3.10 pytorch torchvision pytorch::pytorch-cuda=11.8 sentencepiece conda-forge::tqdm -c pytorch -c nvidia -c anaconda -c conda-forge -n dnabert
+    #conda create  -y python=3.9  pytorch pytorch-cuda=11.8 torchvision cudatoolkit=11.8 sentencepiece=0.1.91 -c anaconda -c conda-forge -c pytorch -c nvidia -n dnabert
+    conda init bash
+    conda clean -a
+    conda activate dnabert
+    
+    git clone https://github.com/jerryji1993/DNABERT /DNABERT
+    cd /DNABERT
+    python3 -m pip install --upgrade pip
+    python3 -m pip install --editable .
+    cd examples
+    cat requirements.txt | grep -v sentencepiece > requirements2.txt
+    python3 -m pip install -r requirements2.txt
+    python -m pip cache purge
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
+    echo "conda activate dnabert" >> $SINGULARITY_ENVIRONMENT
+    mkdir /test
+    echo "print('DNA-BERT Container')\nfrom torch import cuda as tc\nx=tc.is_available()\nprint('Is cuda is_available:', x)\nif x:\n    print(tc.get_device_name())" > /test/testscript.py
+
+    # Apply Patch for validation
+    echo  "541,544c541,544\n<         if args.do_ensemble_pred:\n<             result = compute_metrics(pred_task, preds, out_label_ids, probs[:,1])\n<         else:\n<             result = compute_metrics(pred_task, preds, out_label_ids, probs)\n---\n>         #if args.do_ensemble_pred:\n>         #    result = compute_metrics(pred_task, preds, out_label_ids, probs[:,1])\n>         #else:\n>         #    result = compute_metrics(pred_task, preds, out_label_ids, probs)\n551,552c551,552\n<         for key in sorted(result.keys()):\n<             logger.info(\"  %s = %s\", key, str(result[key]))\n---\n>         #for key in sorted(result.keys()):\n>         #    logger.info(\"  %s = %s\", key, str(result[key]))\n" > /DNABERT/patch.txt
+    patch -o /DNABERT/examples/run_finetune_wovalidation.py /DNABERT/examples/run_finetune.py /DNABERT/patch.txt
+
+%runscript
+
+    python /test/testscript.py
+
+%labels
+    Author Ben Wulf (HTW-Berlin)

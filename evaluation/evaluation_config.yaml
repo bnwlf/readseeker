@@ -1,0 +1,72 @@
+model: "240501_dnabertmodel/"
+references:
+  human:
+    genome: "references/human/human_genome.fasta"
+    cdsBed: "references/human/human_cds.bed"
+  sars2:
+    genome: "references/sars2/sars2_genome.fasta"
+    cdsBed: "references/sars2/sars2_cds.bed"
+  mycobacteriumtubercolosis:
+    genome: "references/mtuberkolosis/mtuberkolosis_genome.fasta"
+    cdsBed: "references/mtuberkolosis/mtuberkolosis_cds.bed"
+    cds_unclearBed: "references/mtuberkolosis/mtuberkolosis_cds_uniprotkb_taxonomy_id_1762_2023_11_23_joined.bed"
+  ecoli:
+    genome: "references/ecoli/ecoli_genome.fasta"
+    cdsBed: "references/ecoli/ecoli_cds.bed"
+    cds_unclearBed: "references/ecoli/ecoli_cds_uniprotkb_561_2024_01_12_joined.bed"
+  gammaherpes4:
+    genome: "references/gammaherpes/gammaherpes_genome.fasta"
+    cdsBed: "references/gammaherpes/gammaherpes_cds.bed"
+    cds_unclearBed: "references/gammaherpes/gammaherpes_cds_uniprotkb_taxonomy_id_548681_2023_12_15_joined.bed"
+samples:
+  ERR10493241:
+    ref: "human"
+    balanced: true
+    R1: "samples/human/ERR10493241_1.fastq.gz"
+    R2: "samples/human/ERR10493241_2.fastq.gz"
+  ERR10492982:
+    ref: "human"
+    balanced: true
+    R1: "samples/human/ERR10492982_1.fastq.gz"
+    R2: "samples/human/ERR10492982_2.fastq.gz"
+  ERR10509672:
+    ref: "human"
+    balanced: true
+    R1: "samples/human/ERR10509672_1.fastq.gz"
+    R2: "samples/human/ERR10509672_2.fastq.gz"
+  ERR10913059:
+    ref: "sars2"
+    balanced: false
+    R1: "samples/sars_cov2/ERR10913059_1.fastq.gz"
+    R2: "samples/sars_cov2/ERR10913059_2.fastq.gz"
+  ERR10913061:
+    ref: "sars2"
+    balanced: false
+    R1: "samples/sars_cov2/ERR10913061_1.fastq.gz"
+    R2: "samples/sars_cov2/ERR10913061_2.fastq.gz"
+  SRR22674487:
+    ref: "ecoli"
+    balanced: true
+    R1: "samples/ecoli_k12/SRR22674487_1.fastq.gz"
+    R2: "samples/ecoli_k12/SRR22674487_2.fastq.gz"
+
+  SRR21820122:
+    ref: "mycobacteriumtubercolosis"
+    balanced: true
+    R1: "samples/mtuberculosis/SRR21820122_1.fastq.gz"
+    R2: "samples/mtuberculosis/SRR21820122_2.fastq.gz"
+  SRR21864655:
+    ref: "mycobacteriumtubercolosis"
+    balanced: true
+    R1: "samples/mtuberculosis/SRR21864655_1.fastq.gz"
+    R2: "samples/mtuberculosis/SRR21864655_2.fastq.gz"
+  SRR21820124:
+    ref: "mycobacteriumtubercolosis"
+    balanced: true
+    R1: "samples/mtuberculosis/SRR21820124_1.fastq.gz"
+    R2: "samples/mtuberculosis/SRR21820124_2.fastq.gz"
+  ERR2024408:
+    ref: "gammaherpes4"
+    balanced: true
+    R1: "samples/gammaherpesv4/ERR2024408_1.fastq.gz"
+    R2: "samples/gammaherpesv4/ERR2024408_2.fastq.gz"
