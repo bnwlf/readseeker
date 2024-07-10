@@ -21,4 +21,4 @@ Execute the snakemake pipeline "[realreads_newtrained_singularity2.snakemake](re
 `--use-singularity` flags.
 
 ## Step 5 - Plots and Statistics
-Finally rerun the jupyter notebook
+Finally rerun the jupyter notebook to generate the plots and statistics.
