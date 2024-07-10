@@ -1,0 +1,3 @@
+/evaluation/samples/*
+/evaluation/references/*
+!/evaluation/references/bedfiles_used/*
