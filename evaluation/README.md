@@ -14,7 +14,7 @@ First download the readseeker model from [huggingface](https://huggingface.co/bn
 2. Download the sample and reference data by using the bash respective commands from [download_prepare_reference_sequences.sh](download_prepare_reference_sequences.sh) or execute the whole script to generate the bed files. (**Attention:** Executing the whole script will take a long period of time(>1d))
 
 ## Step 3 - Build the singularity image
-`singularity build --fakeroot singularity/dnabert.sif singularity/dnabert.def`
+`singularity build --sandbox --fakeroot singularity/dnabert.sif singularity/dnabert.def`
 
 ## Step 4 - Execute the benchmark workflow
 Execute the snakemake pipeline "[realreads_newtrained_singularity2.snakemake](realreads_newtrained_singularity2.snakemake)". Use the provided `evaluation_config.yaml` as config file and activate the `--use-conda` and 
