@@ -3,9 +3,9 @@
 ## Requirements
 To reproduce the evaluation you need:
 - a working singularity and conda installation
-- a conda environment with snakemake
+- a conda environment with snakemake and jupyter notebook
 - an environment to run jupyter notebooks
-
+- Apptainer / Singularity engine
 ## Step 1 - Data Download
 First download the readseeker model from [huggingface](https://huggingface.co/bnwlf/ReadSeeker)
 
@@ -17,10 +17,10 @@ First download the readseeker model from [huggingface](https://huggingface.co/bn
 `apptainer build  singularity/dnabert.sif singularity/dnabert.def`
 
 ## Step 4 - Execute the benchmark workflow
-Execute the snakemake pipeline "[realreads_newtrained_singularity2.snakemake](realreads_newtrained_singularity2.snakemake)". Use the provided `evaluation_config.yaml` as config file and activate the `--use-conda` and 
+Execute the snakemake pipeline "[realreads_newtrained_singularity2.snakemake](evaluation.snakemake)". Use the provided `evaluation_config.yaml` as config file and activate the `--use-conda` and 
 `--use-singularity` flags. In case you want to use the model with CUDA acceleration you need apply the `--singularity-args "--nv -B .:/dum"` flags to snakemake.
 ## Step 5 - Plots and Statistics
-Finally rerun the jupyter notebook to generate the plots and statistics.
+Finally rerun the jupyter notebook "[ReadSeeker_Evaluation_and_Statistics_stable_test_and_extension.ipynb](ReadSeeker_Evaluation_and_Statistics_stable_test_and_extension.ipynb)" to generate the plots and statistic tables from the paper.
 
 
 ## Known issues
