@@ -2,22 +2,24 @@ Bootstrap: docker
 From: continuumio/miniconda3
 
 %post
+    FAKEROOTDONTTRYCHOWN=1
     echo $(which conda)
+
     bash
     apt-get -y update
 
-    apt-get -y install build-essential git curl bash pkg-config libgoogle-perftools-dev libz-dev cmake patch
+    apt-get -y install  build-essential git curl bash pkg-config libgoogle-perftools-dev libz-dev cmake patch coreutils time
     apt-get clean
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup 
       
-    bash ./rustup -y
-    echo "****************"
-    ls -la $HOME/.cargo/bin/
-    export PATH="$HOME/.cargo/bin:$PATH"
-    which rustup
-    rustup default nightly
-    rustup update 
+   bash ./rustup -y
+   echo "****************"
+   ls -la $HOME/.cargo/bin/
+   export PATH="$HOME/.cargo/bin:$PATH"
+   which rustup
+   rustup default nightly
+   rustup update 
       
     . /opt/conda/etc/profile.d/conda.sh
     conda create anaconda::cudatoolkit python=3.10 pytorch torchvision pytorch::pytorch-cuda=11.8 sentencepiece conda-forge::tqdm -c pytorch -c nvidia -c anaconda -c conda-forge -n dnabert
@@ -48,4 +50,4 @@ From: continuumio/miniconda3
     python /test/testscript.py
 
 %labels
-    Author Ben Wulf (HTW-Berlin)
+    Author Ben Wulf (HTW-Berlin) wulf@htw-berlin.de

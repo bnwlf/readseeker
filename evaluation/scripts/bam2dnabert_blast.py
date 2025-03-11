@@ -15,6 +15,7 @@ def bam2props(filename,minimal_readlength=250):
 
 def filtered2tsvrows(pullnames, filename, typ, k=6,reference=None,sample=None,blastnames=set()):
     rows = []
+    fasta_rows = []
     assert typ in ["cds","noncds"]
     label ={"cds":1,"noncds":0}.get(typ)
     
@@ -26,10 +27,17 @@ def filtered2tsvrows(pullnames, filename, typ, k=6,reference=None,sample=None,bl
         if readname in pullnames:
             sequence = ' '.join([read.query[x:x+k] for x in range(len(read.query)-k+1)])
             rows.append(f"{sequence}\t{label}\t{readname}\t{read.mapping_quality}{rt}{st}\t{1 if readname in blastnames else 0}\n")
-            pullnames.remove(readname) # Avoid selecting read twice
-    return(rows)  
 
-def bams2dnabert(cds,noncds,outputfile,qualitycutoff = 40, balance = False, balanceseed = 42,logfile = sys.stdout, referencename=None, samplename=None,minimalreadlength=140, blastReads = None):
+            # Make fasta
+            fasta_rows.append(f">{readname}-{read.mapping_quality}-{1 if readname in blastnames else 0}-{label}\n")
+            fasta_rows.append(f"{read.query}\n")
+
+
+            pullnames.remove(readname) # Avoid selecting read twice
+    return((rows,fasta_rows))
+
+
+def bams2dnabert(cds,noncds,outputfile,fasta_out, qualitycutoff = 40, balance = False, balanceseed = 42,logfile = sys.stdout, referencename=None, samplename=None,minimalreadlength=140, blastReads = None):
     print("CDS File:\t\t",cds, file = logfile)
     print("nonCDS mapping File:\t\t", noncds,file = logfile)
     print("nonCDS mappingblast File",blastReads if blastReads else "-",file = logfile)
@@ -71,6 +79,8 @@ def bams2dnabert(cds,noncds,outputfile,qualitycutoff = 40, balance = False, bala
     print("_________Quality Filtered Reads_________", file = logfile)
     print("QF CDS:", len(hqreads_cds), file = logfile)
     print("QF nonCDS:", len(hqreads_noncds), file = logfile)
+    fasta_outfh = open(fasta_out, "w")
+
     if blastReads:
         print("QF nonCDS blast:", len(hqreads_blastnoncds), file = logfile)
     
@@ -99,41 +109,57 @@ Balanced nonCDS {0}, {2}% loss""".format(
             rt = "" if not referencename else f"\tReferenz"
             st = "" if not samplename else f"\tSample"
             out.write(f"Sequence\tLabel\tName\tMappingQuality{rt}{st}\tReadNotInBlastHits\n")
-            out.writelines(filtered2tsvrows(
+            cds_res = filtered2tsvrows(
                 hqreadnames_sorted_cds,
                 cds,
                 "cds",
                 6,
                 referencename,
-                samplename),)
-            
-            out.writelines(filtered2tsvrows(
+                samplename)
+
+            out.writelines(cds_res[0])
+            fasta_outfh.writelines(cds_res[1])
+
+            noncds_res = filtered2tsvrows(
                 hqreadnames_sorted_noncds,
                 noncds,
                 "noncds",
                 6,
                 referencename,
-                samplename))
+                samplename)
+            
+            out.writelines(noncds_res[0])
+            fasta_outfh.writelines(noncds_res[1])
     else:
       with open(outputfile, "w") as out:
             rt = "" if not referencename else f"\tReferenz"
             st = "" if not samplename else f"\tSample"
             out.write(f"Sequence\tLabel\tName\tMappingQuality{rt}{st}\n")
-            out.writelines(filtered2tsvrows(
+
+
+            cds_res  = filtered2tsvrows(
                 set(hqreads_cds),
                 cds,
                 "cds",
                 6,
                 referencename,
-                samplename))
-            
-            out.writelines(filtered2tsvrows(
+                samplename)
+
+            out.writelines(cds_res[0])
+            fasta_outfh.writelines(cds_res[1])            
+
+            noncds_res = filtered2tsvrows(
                 set(hqreads_noncds),
                 noncds,
                 "noncds",
                 6,
                 referencename,
-                samplename,set(hqreads_blastnoncds.keys())))
+                samplename,set(hqreads_blastnoncds.keys()))
+
+            out.writelines(noncds_res[0])
+            fasta_outfh.writelines(noncds_res[1])
+
+
     print(f"_________Done_________\n{datetime.datetime.now().isoformat()}", file = logfile)
         
     
@@ -147,7 +173,8 @@ with open(snakemake.log[0], "w") as log:
       blastreads = snakemake.input["mapblastnonCDS"]
   bams2dnabert(snakemake.input["cds"],
              snakemake.input["mapnonCDS"],
-             snakemake.output[0],
+             snakemake.output["tsv"],
+             snakemake.output["fasta"],
              snakemake.params["minimalmappingquality"],
              snakemake.params["balanced"],
              referencename=snakemake.wildcards["reference"],

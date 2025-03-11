@@ -2,8 +2,8 @@ import pprint as p
 
 
 # Load Model from Config
-dnabertmodel = config["model"]
-p.pprint(dnabertmodel)
+readseeker_model = config["model"]["localpath"]
+p.pprint(readseeker_model)
 
 # Load References from Config
 references = config["references"]
@@ -38,13 +38,35 @@ def get_sample(wildcards):
 
 # Overview
 # sample -> mapping -> sorting -> filter4mappedReads -> classifyReads cds/nonCDS based on bedfile -> make DNAbert input -> classify with DNAbert -> bind DNAbert output to Input ->  join all predictions -> done
+#                                                                                                         |
+#                                                                                                         |--------------> classify with FragGenescan -> Resolve preticions -> join all predictions -> done
 
 print({sample["ref"] for sample  in samples.values()})
 
 rule themAll:
 	input:
-		"benchmark_result/dnabertCDS_classification_benchmark_{}Samples_{}References.tsv".format(len(samples),len( {sample["ref"] for sample  in samples.values()}))
+		"benchmark_result/dnabertCDS_classification_benchmark_{}Samples_{}References.tsv".format(len(samples),len( {sample["ref"] for sample  in samples.values()})),
+		"benchmark_result/fraggene_classification_benchmark_{}Samples_{}References.tsv".format(len(samples),len( {sample["ref"] for sample  in samples.values()})),
+		"benchmark_result/classification_timingresults_{}Samples_{}References.tsv".format(len(samples),len( {sample["ref"] for sample  in samples.values()}))
 
+
+rule join_timings:
+	input:
+		sorted([f"benchmark/{sampleprops['ref']}/{sample}/dnaberttime.txt"  for sample, sampleprops in samples.items()]),
+		sorted([f"benchmark/{sampleprops['ref']}/{sample}/FragGeneScan/{sample}_FragGeneScanTime.log"  for sample, sampleprops in samples.items()])
+	output:
+		"benchmark_result/classification_timingresults_{samplecount}Samples_{referncecount}References.tsv"
+	shell: """echo "Tool,Sample,Reference,User,System,Real"> {output} && cat {input} >> {output}"""
+
+
+
+
+rule join_FragGene_benchmark:
+	input:
+		sorted([f"benchmark/{sampleprops['ref']}/{sample}/FragGeneScan/{sample}_FragGeneScan_eval.tsv"  for sample, sampleprops in samples.items()])
+	output:
+		"benchmark_result/fraggene_classification_benchmark_{samplecount}Samples_{referencecount}References.tsv"
+	shell: """head -n 1 {input[0]} >{output} && tail -q -n +2 {input} >> {output}"""
 
 
 rule join_single_benchmarks:
@@ -68,26 +90,43 @@ rule dnabertClassification2tsv:
 	script:
 		"scripts/dnabert2tsv.py"
 
+rule pullReadSeekerModel:
+	output:
+		model=os.path.join(readseeker_model,"pytorch_model.bin"),
+		vocab=os.path.join(readseeker_model,"vocab.txt"),
+		dir=directory(readseeker_model)
+	params:
+		config["model"]["url"]
+	conda:
+		"conda/download_env.yaml"
+	shell:
+		"""git clone {params} {output.dir}"""
+
+
 rule dnabertClassifikation:
 	input:
 		inpufile="benchmark/{reference}/{sample}/dev.tsv",
-		model=os.path.join(dnabertmodel,"pytorch_model.bin"),
-		vocab=os.path.join(dnabertmodel,"vocab.txt")
+		model=os.path.join(readseeker_model,"pytorch_model.bin"),
+		vocab=os.path.join(readseeker_model,"vocab.txt")
 	output:
-		"benchmark/{reference}/{sample}/dnabert/pred_results.npy"
+		"benchmark/{reference}/{sample}/dnabert/pred_results.npy",
+		time="benchmark/{reference}/{sample}/dnaberttime.txt"
 	params:
 		outputpath="benchmark/{reference}/{sample}/",
 		inputpath="./",
-		modelpath = dnabertmodel
+		modelpath = readseeker_model,
+		dnabertlog="dnabertlog.txt",
+		time="dnaberttime.txt"
+	log:
+		dna_bert="benchmark/{reference}/{sample}/dnabertlog.txt"
 	singularity: "singularity/dnabert.sif"
 	threads:
-		60
+		50
 	shell:
 		"""modelpath=$(realpath {params.modelpath})
-ls -lah $modelpath
 mkdir -p {params.outputpath}
 cd  {params.outputpath}
-python /DNABERT/examples/run_finetune_wovalidation.py \
+"time" -f "Readseeker,{wildcards.sample},{wildcards.reference},%U,%S,%e" -o {params.time} python /DNABERT/examples/run_finetune_wovalidation.py \
     --model_type dna \
     --tokenizer_name=dna6 \
     --model_name_or_path $modelpath \
@@ -98,8 +137,49 @@ python /DNABERT/examples/run_finetune_wovalidation.py \
     --per_gpu_pred_batch_size=100\
     --output_dir $modelpath \
     --predict_dir ./dnabert \
-    --n_process {threads}
+    --n_process {threads}  | tee {params.dnabertlog}
 """
+
+rule FragGeneScan_eval:
+	input:
+		fasta="benchmark/{reference}/{sample}/{sample}_reads.fasta",
+		ffn= "benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan.ffn"
+	output:
+		"benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan_eval.tsv"
+
+
+	params:
+		"benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan"
+
+	script:
+		"scripts/FragGenScan_eval.py"
+
+rule FragGeneScan:
+	input:
+		fasta="benchmark/{reference}/{sample}/{sample}_reads.fasta"
+	output:
+		ffn="benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan.ffn",
+		time = "benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScanTime.log"
+
+	log:
+		fgs = "benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan.log"
+
+	params:
+		"benchmark/{reference}/{sample}/FragGeneScan/{sample}_FragGeneScan"
+
+	singularity:
+		"https://depot.galaxyproject.org/singularity/fraggenescan%3A1.32--h7b50bb2_0"
+
+	threads: 50
+
+	shell:
+		"""
+		# Change dir to reach illumina_5 traindata
+		cd $(dirname $(which FragGeneScan))
+		"time" -f "FragGeneScan,{wildcards.sample},{wildcards.reference},%U,%S,%e" -o ~/{output.time} FragGeneScan -s ~/{input.fasta} -o ~/{params} -w 0 -p {threads} -t illumina_5 > ~/{log.fgs} 
+		"""
+
+
 
 
 rule bams2dnaberttsv:
@@ -111,7 +191,8 @@ rule bams2dnaberttsv:
 
 
 	output:
-		"benchmark/{reference}/{sample}/dev.tsv"
+		tsv="benchmark/{reference}/{sample}/dev.tsv",
+		fasta="benchmark/{reference}/{sample}/{sample}_reads.fasta"
 	log:
 		"logs/devtab_{reference}_{sample}.log"
 	params:
@@ -120,6 +201,7 @@ rule bams2dnaberttsv:
 	conda:
 		"conda/dnabertconverter.yaml"
 	script: "scripts/bam2dnabert_blast.py"
+
 
 rule getReadswithCDS:
 	input: 

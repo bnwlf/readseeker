@@ -3,6 +3,8 @@ dependencies:
 - python==3.10
 - bioconda::blast>=2.12.0
 - pip
+- anaconda::git
+- anaconda::git-lfs
 - pip:
   # works for regular pip packages
   - biopython==1.79

@@ -9,15 +9,18 @@ mkdir -p references/sars2
 mkdir -p references/gammaherpes
 mkdir -p references/mtuberkolosis
 mkdir -p references/ecoli
+mkdir -p references/mouse
 
 
 echo "Downloading References"
 
 # human GRCh38
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gbff.gz -P references/raw
+python scripts/pythonCDS_BLAST.py makecds references/raw/GCF_000001405.40_GRCh38.p14_genomic.gbff.gz references/human/human
 
-#python scripts/pythonCDS_BLAST.py makecds references/raw/GCF_000001405.40_GRCh38.p14_genomic.gbff.gz references/human/human
-
+# mouse genome
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gbff.gz -p references/raw
+python scripts/pythonCDS_BLAST.py makecds references/raw/GCF_000001635.27_GRCm39_genomic.gbff.gz references/mouse/mouse
 
 # M. tuberculosis NC_000962.3
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/195/955/GCF_000195955.2_ASM19595v2/GCF_000195955.2_ASM19595v2_genomic.gbff.gz -P references/raw
@@ -44,6 +47,12 @@ makeblastdb -in references/mtuberkolosis/mtuberkolosis_genome.fasta -dbtype nucl
 makeblastdb -in references/gammaherpes/gammaherpes_genome.fasta -dbtype nucl -out references/gammaherpes/gammaherpes_nucl_blastdb
 makeblastdb -in references/ecoli/ecoli_genome.fasta -dbtype nucl -out references/ecoli/ecoli_nucl_blastdb
 
+
+
+echo "load uniprot sequences"
+wget https://zenodo.org/records/12699064/files/uniprot_seq.zip?download=1 -O references/uniprot.zip
+unzip -d references/ references/uniprot.zip
+
 echo "Blasting Protein Sequences"
 
 # Extract uniprot sequences
@@ -60,8 +69,8 @@ tblastn -query references/ecoli/ecoli_uniprotkb_taxonomy_id_561_2024_01_12.fasta
 
 echo "Generating CDS files"
 python scripts/pythonCDS_BLAST.py blast2bed references/mtuberkolosis/mtuberkolosis_cds.bed  references/mtuberkolosis/mtuberkolosis_blastoutput.tsv references/mtuberkolosis/mtuberkolosis_uniprotkb_taxonomy_id_1762_2023_11_23.fasta references/mtuberkolosis/mtuberkolosis_cds_uniprotkb_taxonomy_id_1762_2023_11_23_joined.bed
-python scripts/pythonCDS_BLAST.py blast2bed references/gammaherpes/gammaherpes_cds.bed references/gammaherpes/gammaherpes_blastoutput.tsv references/gammaherpes/gammaherpes_uniprotkb_taxonomy_id_548681_2023_12_15.fasta references/gammaherpes/gammaherpes_cds_uniprotkb_taxonomy_id_1762_2023_11_23_joined.bed
-python scripts/pythonCDS_BLAST.py blast2bed references/ecoli/ecoli_cds.bed references/ecoli/ecoli_blastoutput.tsv references/ecoli/ecoli_uniprotkb_taxonomy_id_561_2024_01_12.fasta references/ecoli/ecoli_cds_uniprotkb_taxonomy_id_1762_2023_11_23_joined.bed
+python scripts/pythonCDS_BLAST.py blast2bed references/gammaherpes/gammaherpes_cds.bed references/gammaherpes/gammaherpes_blastoutput.tsv references/gammaherpes/gammaherpes_uniprotkb_taxonomy_id_548681_2023_12_15.fasta references/gammaherpes/gammaherpes_cds_uniprotkb_taxonomy_id_548681_2023_12_15_joined.bed
+python scripts/pythonCDS_BLAST.py blast2bed references/ecoli/ecoli_cds.bed references/ecoli/ecoli_blastoutput.tsv references/ecoli/ecoli_uniprotkb_taxonomy_id_561_2024_01_12.fasta references/ecoli/ecoli_cds_uniprotkb_taxonomy_id_561_2024_01_12_joined.bed
 
 
 
@@ -114,6 +123,20 @@ wget -nc http://ftp.sra.ebi.ac.uk/vol1/fastq/ERR109/059/ERR10913059/ERR10913059_
 wget -nc http://ftp.sra.ebi.ac.uk/vol1/fastq/ERR109/061/ERR10913061/ERR10913061_2.fastq.gz -P samples/
 wget -nc http://ftp.sra.ebi.ac.uk/vol1/fastq/ERR109/061/ERR10913061/ERR10913061_1.fastq.gz -P samples/
 
+# Mouse
+wget http://ftp.sra.ebi.ac.uk/vol1/fastq/DRR317/DRR317657/DRR317657_1.fastq.gz -P samples/
+wget http://ftp.sra.ebi.ac.uk/vol1/fastq/DRR317/DRR317657/DRR317657_2.fastq.gz -P samples/
+
+# Trim mouse sample to 2 million reads (1mio Read 1, 1mio Read 2)
+zcat DRR317657_2.fastq.gz | head -n 20000000 | gzip > DRR317657_sub5m_2.fastq.gz
+zcat DRR317657_1.fastq.gz | head -n 20000000 | gzip > DRR317657_sub5m_1.fastq.gz
 
 
 
+zcat samples/ERR3021870_1.fastq.gz | head -n 4000000 | gzip > ERR3021870sub1m_1.fastq.gz 
+zcat samples/ERR3021870_2.fastq.gz | head -n 4000000 | gzip > ERR3021870sub1m_2.fastq.gz
+
+
+
+# build singularity image
+#singularity build singularity/dnabert.sif singularity/dnabert.def 
