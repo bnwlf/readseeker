@@ -20,7 +20,7 @@ First download the readseeker model from [huggingface](https://huggingface.co/bn
 Execute the snakemake pipeline "[realreads_newtrained_singularity2.snakemake](evaluation.snakemake)". Use the provided `evaluation_config.yaml` as config file and activate the `--use-conda` and 
 `--use-singularity` flags. In case you want to use the model with CUDA acceleration you need apply the `--singularity-args "--nv -B .:/dum"` flags to snakemake.
 ## Step 5 - Plots and Statistics
-Finally rerun the jupyter notebook "[ReadSeeker_Evaluation_and_Statistics_stable_test_and_extension.ipynb](ReadSeeker_Evaluation_and_Statistics_stable_test_and_extension.ipynb)" to generate the plots and statistic tables from the paper.
+Finally rerun the jupyter notebook "[ReadSeeker_Benchmark_evaluation.ipynb](ReadSeeker_Benchmark_evaluation.ipynb)" to generate the plots and statistic tables from the paper.
 
 
 ## Known issues
